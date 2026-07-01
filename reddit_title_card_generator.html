@@ -153,19 +153,24 @@ function drawCard(data, subreddit, style) {
 
   drawRedditLogo(ctx, lx + logoR, logoY, logoR);
 
+  let subText = subreddit;
+  if (!subText.startsWith('r/')) {
+    subText = 'r/' + subText;
+  }
+
   ctx.fillStyle = TEXT;
-  ctx.font = '600 26px system-ui, -apple-system, sans-serif';
+  ctx.font = '600 24px system-ui, -apple-system, sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(subreddit, lx + logoR * 2 + 12, logoY - 5);
+  ctx.fillText(subText, lx + logoR * 2 + 12, logoY);
 
-  ctx.fillStyle = '#1DA1F2';
-  ctx.font = '500 20px system-ui';
-  ctx.fillText('✓', lx + logoR * 2 + 12 + ctx.measureText(subreddit).width + 6, logoY - 5);
+  const subW = ctx.measureText(subText).width;
 
   ctx.fillStyle = SUB;
-  ctx.font = '400 20px system-ui';
-  ctx.fillText('• r/' + subreddit.toLowerCase(), lx + logoR * 2 + 12, logoY + 18);
+  ctx.font = '400 20px system-ui, -apple-system, sans-serif';
+  const authorName = 'reddit.stories';
+  const metaText = ' • Posted by u/' + authorName;
+  ctx.fillText(metaText, lx + logoR * 2 + 12 + subW, logoY);
 
   ctx.fillStyle = TEXT;
   ctx.font = `700 ${data.title.length > 80 ? 34 : 40}px system-ui, -apple-system, sans-serif`;
