@@ -16,8 +16,12 @@ venv.bak/
 .DS_Store
 
 # Project generated/large files
-background_videos/
+background_videos/*
+!background_videos/video_5.mp4
+!background_videos/video_2_split.zip
+!background_videos/video_2_split.z*
+
 bg_video_state.json
-output/
 output_audio/
 output_shorts/
+
