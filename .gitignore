@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+ENV/
+env/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# macOS files
+.DS_Store
+
+# Project generated/large files
+background_videos/
+bg_video_state.json
+output/
+output_audio/
+output_shorts/

@@ -1,0 +1,224 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); }
+  .wrap { padding: 1rem 0; }
+  .section-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  textarea { width: 100%; min-height: 120px; font-family: var(--font-mono); font-size: 12px; border-radius: var(--radius); border: 0.5px solid var(--border); background: var(--surface-1); color: var(--text-primary); padding: 10px 12px; resize: vertical; }
+  textarea:focus { outline: none; border-color: var(--border-accent); }
+  .btn-row { display: flex; gap: 8px; margin: 12px 0; }
+  .btn-gen { background: var(--fill-primary); color: var(--on-primary); border: none; border-radius: var(--radius); padding: 8px 20px; font-size: 14px; cursor: pointer; font-family: var(--font-sans); }
+  .btn-gen:hover { background: var(--fill-primary-hover); }
+  .btn-dl { background: transparent; border: 0.5px solid var(--border-strong); border-radius: var(--radius); padding: 8px 16px; font-size: 14px; cursor: pointer; color: var(--text-primary); font-family: var(--font-sans); }
+  .btn-dl:hover { background: var(--surface-1); }
+  .preview-area { margin-top: 16px; }
+  .canvas-wrap { display: flex; justify-content: center; background: var(--surface-0); border-radius: 12px; border: 0.5px solid var(--border); padding: 24px; }
+  canvas { border-radius: 16px; max-width: 100%; }
+  .status { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+  .error { color: var(--text-danger); font-size: 13px; margin-top: 8px; }
+</style>
+
+<div class="wrap">
+  <h2 class="sr-only">Reddit Title Card Generator for YouTube Shorts</h2>
+  
+  <div style="margin-bottom: 16px;">
+    <div class="section-label">Paste your JSON post data</div>
+    <textarea id="jsonInput" placeholder='{"title":"AITH for refusing to perform happiness...","upvotes":"485","comments":"10","author":"username"}'></textarea>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+    <div>
+      <div class="section-label">Subreddit name</div>
+      <input type="text" id="subreddit" value="AskReddit" style="width:100%; border-radius:var(--radius); border:0.5px solid var(--border); background:var(--surface-1); color:var(--text-primary); padding:8px 12px; font-size:14px; font-family:var(--font-sans);">
+    </div>
+    <div>
+      <div class="section-label">Card style</div>
+      <select id="cardStyle" style="width:100%; border-radius:var(--radius); border:0.5px solid var(--border); background:var(--surface-1); color:var(--text-primary); padding:8px 12px; font-size:14px; font-family:var(--font-sans);">
+        <option value="light">Light (white card)</option>
+        <option value="dark">Dark card</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-gen" onclick="generateCard()">Generate card</button>
+    <button class="btn-dl" onclick="downloadCard()" id="dlBtn" style="display:none">Download PNG</button>
+  </div>
+
+  <div id="status" class="status"></div>
+  <div id="err" class="error"></div>
+
+  <div class="preview-area" id="previewArea" style="display:none">
+    <div class="section-label" style="margin-bottom:8px">Preview (1080 × 400px — paste into Shorts)</div>
+    <div class="canvas-wrap">
+      <canvas id="cardCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const W = 1080, H = 400;
+let lastBlob = null;
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; document.getElementById('err').textContent = ''; }
+function setErr(msg) { document.getElementById('err').textContent = msg; document.getElementById('status').textContent = ''; }
+
+function wrapText(ctx, text, x, y, maxW, lineH) {
+  const words = text.split(' ');
+  let line = '';
+  let lines = [];
+  for (let w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      lines.push(line);
+      line = w;
+    } else line = test;
+  }
+  if (line) lines.push(line);
+  lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
+  return lines.length;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawRedditLogo(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.fillStyle = '#FF4500';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${r * 1.1}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('r', cx, cy + 1);
+  ctx.restore();
+}
+
+function drawBadge(ctx, x, y, text, dark) {
+  const pad = 14, h = 32, r = 16;
+  ctx.font = '500 22px system-ui, -apple-system, sans-serif';
+  const tw = ctx.measureText(text).width;
+  const bw = tw + pad * 2;
+  ctx.fillStyle = dark ? '#2a2a2a' : '#ededed';
+  roundRect(ctx, x, y - h / 2, bw, h, r);
+  ctx.fill();
+  ctx.fillStyle = dark ? '#ccc' : '#444';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + pad, y);
+  return bw;
+}
+
+function drawCard(data, subreddit, style) {
+  const canvas = document.getElementById('cardCanvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const dark = style === 'dark';
+  const BG = dark ? '#1a1a1b' : '#ffffff';
+  const TEXT = dark ? '#d7dadc' : '#1c1c1c';
+  const SUB = dark ? '#818384' : '#878a8c';
+  const CARD = dark ? '#272729' : '#ffffff';
+  const BORDER = dark ? '#343536' : '#ccc';
+
+  ctx.fillStyle = dark ? '#0d1117' : '#f6f7f8';
+  ctx.fillRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2;
+  const cw = 960, ch = 340;
+  const ox = (W - cw) / 2, oy = (H - ch) / 2;
+
+  ctx.fillStyle = CARD;
+  roundRect(ctx, ox, oy, cw, ch, 16);
+  ctx.fill();
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const lx = ox + 28;
+  const logoR = 28;
+  const logoY = oy + 44;
+
+  drawRedditLogo(ctx, lx + logoR, logoY, logoR);
+
+  ctx.fillStyle = TEXT;
+  ctx.font = '600 26px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(subreddit, lx + logoR * 2 + 12, logoY - 5);
+
+  ctx.fillStyle = '#1DA1F2';
+  ctx.font = '500 20px system-ui';
+  ctx.fillText('✓', lx + logoR * 2 + 12 + ctx.measureText(subreddit).width + 6, logoY - 5);
+
+  ctx.fillStyle = SUB;
+  ctx.font = '400 20px system-ui';
+  ctx.fillText('• r/' + subreddit.toLowerCase(), lx + logoR * 2 + 12, logoY + 18);
+
+  ctx.fillStyle = TEXT;
+  ctx.font = `700 ${data.title.length > 80 ? 34 : 40}px system-ui, -apple-system, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const titleY = oy + 96;
+  const titleMaxW = cw - 56;
+  const lineH = data.title.length > 80 ? 46 : 52;
+  wrapText(ctx, data.title, lx, titleY, titleMaxW, lineH);
+
+  const botY = oy + ch - 52;
+  ctx.textBaseline = 'middle';
+
+  const upvote = '▲ ' + (data.upvotes || '0');
+  const w1 = drawBadge(ctx, lx, botY, upvote, dark);
+
+  const comments = '💬 ' + (data.comments || '0');
+  const w2 = drawBadge(ctx, lx + w1 + 10, botY, comments, dark);
+
+  const share = '↗ Share';
+  drawBadge(ctx, lx + w1 + w2 + 20, botY, share, dark);
+
+  return canvas;
+}
+
+function generateCard() {
+  setStatus('');
+  const raw = document.getElementById('jsonInput').value.trim();
+  const subreddit = document.getElementById('subreddit').value.trim() || 'AskReddit';
+  const style = document.getElementById('cardStyle').value;
+
+  let data;
+  try {
+    data = raw ? JSON.parse(raw) : { title: 'What if God came down one day and said "It\'s pronounced \'Jod\'" then left?', upvotes: '485', comments: '10' };
+  } catch (e) {
+    setErr('Invalid JSON — check your paste and try again.');
+    return;
+  }
+  if (!data.title) { setErr('JSON must have a "title" field.'); return; }
+
+  drawCard(data, subreddit, style);
+  document.getElementById('previewArea').style.display = 'block';
+  document.getElementById('dlBtn').style.display = 'inline-block';
+  setStatus('Card generated. Right-click the preview to save, or use the download button.');
+}
+
+function downloadCard() {
+  const canvas = document.getElementById('cardCanvas');
+  const a = document.createElement('a');
+  a.download = 'reddit_title_card.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+generateCard();
+</script>
