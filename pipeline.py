@@ -536,22 +536,30 @@ def assemble_final_video(background_video, tts_audio, title_card_image, title_du
          
         caption_clips.append(txt_clip)
         
-    # Watermark overlay (placed at X=860, Y=45)
-    # Can be replaced with an ImageClip in the future:
-    # watermark_clip = ImageClip("watermark.png").with_position((860, 45)).with_start(0).with_duration(total_duration)
-    watermark_clip = TextClip(
-        text=f"@{PAGE_ID}",
-        font_size=28,
-        font=font_path,
-        color="white",
-        stroke_color="black",
-        stroke_width=1,
-        method="caption",
-        size=(200, None)
-    ).with_position((860, 45)) \
-     .with_start(0) \
-     .with_duration(total_duration) \
-     .with_opacity(0.5)
+    # Watermark overlay
+    watermark_img_path = "ChatGPT_Image_Jul_1__2026__07_27_20_PM-removebg-preview.png"
+    if os.path.exists(watermark_img_path):
+        watermark_clip = (ImageClip(watermark_img_path)
+                          .with_effects([vfx.Resize(width=130), vfx.Rotate(15, expand=True)])
+                          .with_start(0)
+                          .with_duration(total_duration)
+                          .with_opacity(0.6)
+                          .with_position((880, 70)))
+    else:
+        # Fallback to TextClip watermark if image not found
+        watermark_clip = TextClip(
+            text=f"@{PAGE_ID}",
+            font_size=28,
+            font=font_path,
+            color="white",
+            stroke_color="black",
+            stroke_width=1,
+            method="caption",
+            size=(200, None)
+        ).with_position((860, 45)) \
+         .with_start(0) \
+         .with_duration(total_duration) \
+         .with_opacity(0.5)
      
     clips_list = [video_clip, title_clip, watermark_clip] + caption_clips
     
